@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>まるばつゲーム</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Fredoka+One&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{
+  background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  padding:16px 12px 40px;gap:12px;
+  font-family:'Noto Sans JP',sans-serif;color:#fff;user-select:none;touch-action:manipulation;
+}
+h1{font-family:'Fredoka One',cursive;font-size:28px;color:#ffd700;
+  text-shadow:0 0 24px rgba(255,215,0,.5);letter-spacing:2px;}
+
+.level-row{display:flex;gap:8px;}
+.lbtn{font-size:12px;padding:6px 16px;border-radius:20px;border:2px solid #555;
+  background:transparent;color:#aaa;cursor:pointer;transition:all .2s;touch-action:manipulation;}
+.lbtn:hover{border-color:#ffd700;color:#ffd700;}
+.lbtn.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:bold;}
+
+.score-row{display:flex;gap:20px;align-items:center;}
+.score-box{text-align:center;}
+.score-label{font-size:10px;color:#888;letter-spacing:1px;}
+.score-val{font-family:'Fredoka One',cursive;font-size:26px;}
+.score-val.red{color:#ff8080;}
+.score-val.blue{color:#ff9f40;}
+.score-val.gray{color:#888;}
+
+.status{font-size:16px;font-weight:bold;min-height:28px;text-align:center;transition:color .3s;}
+.status.player{color:#ff8080;}
+.status.cpu{color:#ff9f40;}
+.status.win{color:#ffd700;}
+.status.lose{color:#e05050;}
+.status.draw{color:#aaa;}
+
+/* モード選択 */
+.mode-row{
+  display:flex;gap:8px;align-items:center;
+  background:rgba(255,255,255,.06);border-radius:12px;padding:8px 12px;
+}
+.mode-label{font-size:12px;color:#888;}
+.mode-btn{
+  font-size:13px;padding:6px 14px;border-radius:8px;
+  border:2px solid #555;background:transparent;color:#aaa;
+  cursor:pointer;transition:all .2s;touch-action:manipulation;
+}
+.mode-btn.active.o{background:#ff8080;color:#fff;border-color:#ff8080;}
+.mode-btn.active.x{background:#ff9f40;color:#1a1a2e;border-color:#ff9f40;}
+
+/* ビッグストーン手持ち */
+.hand-row{display:flex;gap:16px;align-items:flex-start;width:100%;max-width:340px;justify-content:space-between;}
+.hand-box{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  background:rgba(255,255,255,.06);border-radius:12px;padding:8px 12px;
+  flex:1;
+}
+.hand-title{font-size:10px;color:#888;letter-spacing:1px;}
+.hand-stones{display:flex;gap:4px;min-height:36px;align-items:center;justify-content:center;}
+.big-stone{
+  width:30px;height:30px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer;
+  border:2px solid transparent;
+  transition:transform .15s,border-color .15s;
+  touch-action:manipulation;
+}
+.big-stone.o{border-color:rgba(255,128,128,.3);}
+.big-stone.x{border-color:rgba(255,159,64,.3);}
+.big-stone.selected{border-color:#ffd700;transform:scale(1.2);background:rgba(255,215,0,.15);}
+.big-stone.used{opacity:.2;cursor:default;pointer-events:none;}
+
+/* ボード */
+.board{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  background:rgba(255,255,255,.05);border-radius:16px;padding:12px;
+  box-shadow:0 8px 40px rgba(0,0,0,.5);
+  width:min(320px,92vw);
+}
+.cell{
+  aspect-ratio:1;border-radius:12px;
+  background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.1);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background .15s,transform .1s;
+  touch-action:manipulation;position:relative;overflow:hidden;
+  flex-direction:column;gap:0;
+}
+.cell:hover{background:rgba(255,255,255,.13);}
+.cell:active{transform:scale(.93);}
+.cell.no-place{cursor:not-allowed;opacity:.6;}
+
+/* セル内の石表示 */
+.cell-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;}
+.stone-small{font-size:28px;line-height:1;}
+.stone-big{font-size:44px;line-height:1;}
+.stone-label{font-size:9px;color:rgba(255,255,255,.5);letter-spacing:1px;}
+
+.cell.win-cell{background:rgba(255,215,0,.2);border-color:#ffd700;animation:winPulse .5s ease alternate infinite;}
+@keyframes winPulse{from{transform:scale(1)}to{transform:scale(1.06)}}
+.cell.pop .stone-big,.cell.pop .stone-small{animation:pop .25s cubic-bezier(.34,1.56,.64,1);}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+.btn{font-size:14px;letter-spacing:1px;padding:9px 24px;border-radius:12px;
+  border:2px solid #ffd700;background:transparent;color:#ffd700;
+  cursor:pointer;transition:all .15s;touch-action:manipulation;}
+.btn:hover,.btn:active{background:#ffd700;color:#1a1a2e;}
+
+.rule-hint{font-size:11px;color:#555;text-align:center;line-height:1.7;max-width:320px;}
+</style>
+</head>
+<body>
+
+<h1>⭕ まるばつ ✖️</h1>
+
+<div class="level-row">
+  <button class="lbtn active" onclick="setLevel(0,this)">😊 よわい</button>
+  <button class="lbtn" onclick="setLevel(1,this)">😐 ふつう</button>
+  <button class="lbtn" onclick="setLevel(2,this)">😈 つよい</button>
+</div>
+
+<div class="score-row">
+  <div class="score-box">
+    <div class="score-label">あなた ⭕</div>
+    <div class="score-val red" id="score-p">0</div>
+  </div>
+  <div class="score-box">
+    <div class="score-label">引き分け</div>
+    <div class="score-val gray" id="score-d">0</div>
+  </div>
+  <div class="score-box">
+    <div class="score-label">CPU ✖️</div>
+    <div class="score-val blue" id="score-c">0</div>
+  </div>
+</div>
+
+<div class="status player" id="status">あなたの番です ⭕</div>
+
+<!-- モード選択 -->
+<div class="mode-row">
+  <span class="mode-label">置く石：</span>
+  <button class="mode-btn active o" id="mode-normal" onclick="setMode('normal')">通常 ⭕</button>
+  <button class="mode-btn x" id="mode-big" onclick="setMode('big')">ビッグ 🔴</button>
+</div>
+
+<!-- 手持ちビッグストーン -->
+<div class="hand-row">
+  <div class="hand-box">
+    <div class="hand-title">あなたのビッグ</div>
+    <div class="hand-stones" id="hand-p"></div>
+  </div>
+  <div class="hand-box">
+    <div class="hand-title">CPUのビッグ</div>
+    <div class="hand-stones" id="hand-c"></div>
+  </div>
+</div>
+
+<div class="board" id="board">
+  <div class="cell" onclick="playerMove(0)" ontouchend="touchCell(event,0)"></div>
+  <div class="cell" onclick="playerMove(1)" ontouchend="touchCell(event,1)"></div>
+  <div class="cell" onclick="playerMove(2)" ontouchend="touchCell(event,2)"></div>
+  <div class="cell" onclick="playerMove(3)" ontouchend="touchCell(event,3)"></div>
+  <div class="cell" onclick="playerMove(4)" ontouchend="touchCell(event,4)"></div>
+  <div class="cell" onclick="playerMove(5)" ontouchend="touchCell(event,5)"></div>
+  <div class="cell" onclick="playerMove(6)" ontouchend="touchCell(event,6)"></div>
+  <div class="cell" onclick="playerMove(7)" ontouchend="touchCell(event,7)"></div>
+  <div class="cell" onclick="playerMove(8)" ontouchend="touchCell(event,8)"></div>
+</div>
+
+<button class="btn" onclick="resetGame()">🔄 もう一度</button>
+
+<div class="rule-hint">
+  通常石は空きマスのみ・ビッグ石はどこにでも重ねられる<br>
+  ビッグ石の上には何も置けない・ビッグ石が上書き優先
+</div>
+
+<script>
+// ============================================================
+// 状態
+// ============================================================
+// board[i] = {mark:'O'|'X'|null, big:false}
+// markはそのマスの現在の記号、bigはビッグストーンかどうか
+let board=Array.from({length:9},()=>({mark:null,big:false}));
+let gameOver=false;
+let level=0;
+let scores={p:0,d:0,c:0};
+let isCpuTurn=false;
+let playerMode='normal'; // 'normal' or 'big'
+let bigStones={p:3,c:3}; // 手持ちビッグストーン数
+
+const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+// ============================================================
+// 勝敗判定
+// ============================================================
+function checkWin(b,mark){
+  return LINES.find(line=>line.every(i=>b[i].mark===mark))||null;
+}
+function isFull(b){return b.every(v=>v.mark!==null);}
+
+// ============================================================
+// 配置可能チェック
+// ============================================================
+function canPlace(b,idx,isBig){
+  if(isBig){
+    // ビッグストーンはビッグの上以外どこにでも置ける
+    return !b[idx].big;
+  } else {
+    // 通常石は空きマスのみ
+    return b[idx].mark===null;
+  }
+}
+
+// ============================================================
+// 石を置く
+// ============================================================
+function placeStone(b,idx,mark,isBig){
+  b[idx]={mark,big:isBig};
+}
+
+// ============================================================
+// ミニマックス（つよい用）
+// ============================================================
+function evaluate(b){
+  if(checkWin(b,'X'))return 10;
+  if(checkWin(b,'O'))return -10;
+  return 0;
+}
+
+function minimax(b,bigP,bigC,isMax,depth){
+  const score=evaluate(b);
+  if(score!==0)return score-Math.sign(score)*depth;
+  if(isFull(b)&&bigP===0&&bigC===0)return 0;
+
+  if(isMax){
+    let best=-Infinity;
+    const hasBig=bigC>0;
+    for(let i=0;i<9;i++){
+      // 通常
+      if(canPlace(b,i,false)){
+        const prev={...b[i]};
+        placeStone(b,i,'X',false);
+        best=Math.max(best,minimax(b,bigP,bigC,false,depth+1));
+        b[i]=prev;
+      }
+      // ビッグ
+      if(hasBig&&canPlace(b,i,true)){
+        const prev={...b[i]};
+        placeStone(b,i,'X',true);
+        best=Math.max(best,minimax(b,bigP,bigC-1,false,depth+1));
+        b[i]=prev;
+      }
+    }
+    if(best===-Infinity)return 0;
+    return best;
+  } else {
+    let best=Infinity;
+    const hasBig=bigP>0;
+    for(let i=0;i<9;i++){
+      if(canPlace(b,i,false)){
+        const prev={...b[i]};
+        placeStone(b,i,'O',false);
+        best=Math.min(best,minimax(b,bigP,bigC,true,depth+1));
+        b[i]=prev;
+      }
+      if(hasBig&&canPlace(b,i,true)){
+        const prev={...b[i]};
+        placeStone(b,i,'O',true);
+        best=Math.min(best,minimax(b,bigP-1,bigC,true,depth+1));
+        b[i]=prev;
+      }
+    }
+    if(best===Infinity)return 0;
+    return best;
+  }
+}
+
+// ============================================================
+// CPUの手を決める
+// ============================================================
+function getCpuMove(){
+  const moves=[];
+  for(let i=0;i<9;i++){
+    if(canPlace(board,i,false))moves.push({i,big:false});
+    if(bigStones.c>0&&canPlace(board,i,true))moves.push({i,big:true});
+  }
+  if(moves.length===0)return null;
+
+  if(level===0){
+    // よわい: 勝てる手があれば打つ、たまにビッグ使う、基本ランダム
+    const win=findWinMove('X',false)||findWinMove('X',true);
+    if(win&&Math.random()<0.5)return win;
+    return moves[Math.floor(Math.random()*moves.length)];
+
+  } else if(level===1){
+    // ふつう: 勝ち→防ぐ→ランダム（ビッグも考慮）
+    const win=findWinMove('X',false)||findWinMove('X',true);
+    if(win)return win;
+    const block=findWinMove('O',false)||(bigStones.c>0?findWinMove('O',true):null);
+    if(block)return {i:block.i,big:bigStones.c>0&&!canPlace(board,block.i,false)};
+    return moves[Math.floor(Math.random()*moves.length)];
+
+  } else {
+    // つよい: 深さ制限付きミニマックス
+    let best=-Infinity,bestMove=moves[0];
+    for(const mv of moves){
+      const prev={...board[mv.i]};
+      const prevBig=bigStones.c;
+      placeStone(board,mv.i,'X',mv.big);
+      if(mv.big)bigStones.c--;
+      const score=minimax(board,bigStones.p,bigStones.c,false,0);
+      board[mv.i]=prev;
+      bigStones.c=prevBig;
+      if(score>best){best=score;bestMove=mv;}
+    }
+    return bestMove;
+  }
+}
+
+function findWinMove(mark,isBig){
+  for(let i=0;i<9;i++){
+    if(!canPlace(board,i,isBig))continue;
+    if(isBig&&bigStones[mark==='X'?'c':'p']===0)continue;
+    const prev={...board[i]};
+    placeStone(board,i,mark,isBig);
+    const w=checkWin(board,mark);
+    board[i]=prev;
+    if(w)return{i,big:isBig};
+  }
+  return null;
+}
+
+// ============================================================
+// プレイヤーの手
+// ============================================================
+function playerMove(idx){
+  if(gameOver||isCpuTurn)return;
+  const isBig=playerMode==='big';
+  if(isBig&&bigStones.p===0){setStatus('player');return;}
+  if(!canPlace(board,idx,isBig))return;
+
+  placeStone(board,idx,'O',isBig);
+  if(isBig)bigStones.p--;
+  renderCell(idx);
+  renderHands();
+
+  const winLine=checkWin(board,'O');
+  if(winLine){endGame('player',winLine);return;}
+  if(checkDraw()){endGame('draw');return;}
+
+  isCpuTurn=true;
+  setMode('normal');
+  setStatus('cpu');
+  setTimeout(doCpuTurn,600);
+}
+
+function touchCell(e,idx){e.preventDefault();playerMove(idx);}
+
+function checkDraw(){
+  // 通常手もビッグ手も両者ともない場合
+  const pMoves=Array.from({length:9},(_,i)=>i).filter(i=>canPlace(board,i,false)||(bigStones.p>0&&canPlace(board,i,true)));
+  const cMoves=Array.from({length:9},(_,i)=>i).filter(i=>canPlace(board,i,false)||(bigStones.c>0&&canPlace(board,i,true)));
+  return pMoves.length===0&&cMoves.length===0;
+}
+
+function doCpuTurn(){
+  const mv=getCpuMove();
+  if(!mv){endGame('draw');return;}
+  placeStone(board,mv.i,'X',mv.big);
+  if(mv.big)bigStones.c--;
+  renderCell(mv.i);
+  renderHands();
+
+  const winLine=checkWin(board,'X');
+  if(winLine){endGame('cpu',winLine);return;}
+  if(checkDraw()){endGame('draw');return;}
+
+  isCpuTurn=false;
+  setStatus('player');
+}
+
+// ============================================================
+// 描画
+// ============================================================
+function renderCell(idx){
+  const cell=document.getElementById('board').children[idx];
+  const {mark,big}=board[idx];
+  cell.innerHTML='';
+  cell.className='cell pop';
+
+  if(mark){
+    const inner=document.createElement('div');
+    inner.className='cell-inner';
+    const s=document.createElement('div');
+
+    if(big){
+      // ビッグストーン: 四角い枠付き
+      s.style.display='flex';
+      s.style.alignItems='center';
+      s.style.justifyContent='center';
+      s.style.width='64px';
+      s.style.height='64px';
+      s.style.border=mark==='O'?'3px solid #ff8080':'3px solid #ff9f40';
+      s.style.borderRadius='8px';
+      s.style.background=mark==='O'?'rgba(255,128,128,.15)':'rgba(255,159,64,.15)';
+      s.style.boxShadow=mark==='O'?'0 0 12px rgba(255,128,128,.4)':'0 0 12px rgba(255,159,64,.4)';
+
+      const inner2=document.createElement('div');
+      if(mark==='O'){
+        inner2.textContent='⭕';
+        inner2.style.fontSize='36px';
+      } else {
+        inner2.textContent='✕';
+        inner2.style.fontSize='34px';
+        inner2.style.fontWeight='bold';
+        inner2.style.color='#ff9f40';
+        inner2.style.fontFamily='Fredoka One, sans-serif';
+        inner2.style.textShadow='0 0 8px rgba(255,159,64,.6)';
+      }
+      s.appendChild(inner2);
+    } else {
+      // 通常石
+      s.className='stone-small';
+      if(mark==='O'){
+        s.textContent='⭕';
+      } else {
+        s.textContent='✕';
+        s.style.color='#ff9f40';
+        s.style.fontFamily='Fredoka One, sans-serif';
+        s.style.fontWeight='bold';
+        s.style.fontSize='36px';
+        s.style.lineHeight='1';
+        s.style.textShadow='0 0 12px rgba(255,159,64,0.6)';
+      }
+    }
+
+    inner.appendChild(s);
+    cell.appendChild(inner);
+    if(board[idx].big)cell.classList.add('no-place');
+  }
+}
+
+function renderAllCells(){
+  for(let i=0;i<9;i++)renderCell(i);
+}
+
+function renderHands(){
+  renderHand('hand-p','o',bigStones.p);
+  renderHand('hand-c','x',bigStones.c);
+}
+
+function renderHand(id,cls,count){
+  const el=document.getElementById(id);
+  el.innerHTML='';
+  for(let i=0;i<3;i++){
+    const s=document.createElement('div');
+    s.className='big-stone '+cls+(i>=count?' used':'');
+    s.textContent=cls==='o'?'🔴':'✕';
+    if(cls==='x'){s.style.color='#ff9f40';s.style.fontSize='20px';s.style.fontWeight='bold';}
+    if(cls==='o'&&i<count){
+      s.onclick=()=>{setMode('big');};
+    }
+    el.appendChild(s);
+  }
+}
+
+function setStatus(state){
+  const el=document.getElementById('status');
+  el.className='status '+state;
+  if(state==='player')el.textContent='あなたの番 ⭕（モードを選んで置いてください）';
+  else if(state==='cpu')el.textContent='CPUが考えています...';
+  else if(state==='win')el.textContent='🎉 あなたの勝ち！';
+  else if(state==='lose')el.textContent='😢 CPUの勝ち...';
+  else if(state==='draw')el.textContent='🤝 引き分け！';
+}
+
+function setMode(mode){
+  playerMode=mode;
+  document.getElementById('mode-normal').className='mode-btn'+(mode==='normal'?' active o':' o');
+  document.getElementById('mode-big').className='mode-btn'+(mode==='big'?' active x':' x');
+}
+
+// ============================================================
+// ゲーム終了
+// ============================================================
+function endGame(result,winLine){
+  gameOver=true;
+  if(winLine){
+    winLine.forEach(i=>{
+      document.getElementById('board').children[i].classList.add('win-cell');
+    });
+  }
+  if(result==='player'){scores.p++;setStatus('win');}
+  else if(result==='cpu'){scores.c++;setStatus('lose');}
+  else{scores.d++;setStatus('draw');}
+  document.getElementById('score-p').textContent=scores.p;
+  document.getElementById('score-d').textContent=scores.d;
+  document.getElementById('score-c').textContent=scores.c;
+}
+
+// ============================================================
+// リセット・レベル
+// ============================================================
+function resetGame(){
+  board=Array.from({length:9},()=>({mark:null,big:false}));
+  bigStones={p:3,c:3};
+  gameOver=false;isCpuTurn=false;
+  setMode('normal');
+  renderAllCells();
+  renderHands();
+  setStatus('player');
+}
+
+function setLevel(lv,btn){
+  level=lv;
+  document.querySelectorAll('.lbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  resetGame();
+}
+
+resetGame();
+</script>
+</body>
+</html>
