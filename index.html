@@ -229,27 +229,26 @@ function evaluate(b){
   return 0;
 }
 
-function minimax(b,bigP,bigC,isMax,depth){
+function minimax(b,bigP,bigC,isMax,depth,maxDepth){
   const score=evaluate(b);
   if(score!==0)return score-Math.sign(score)*depth;
+  if(depth>=maxDepth)return 0;
   if(isFull(b)&&bigP===0&&bigC===0)return 0;
 
   if(isMax){
     let best=-Infinity;
     const hasBig=bigC>0;
     for(let i=0;i<9;i++){
-      // 通常
       if(canPlace(b,i,false)){
         const prev={...b[i]};
         placeStone(b,i,'X',false);
-        best=Math.max(best,minimax(b,bigP,bigC,false,depth+1));
+        best=Math.max(best,minimax(b,bigP,bigC,false,depth+1,maxDepth));
         b[i]=prev;
       }
-      // ビッグ
       if(hasBig&&canPlace(b,i,true)){
         const prev={...b[i]};
         placeStone(b,i,'X',true);
-        best=Math.max(best,minimax(b,bigP,bigC-1,false,depth+1));
+        best=Math.max(best,minimax(b,bigP,bigC-1,false,depth+1,maxDepth));
         b[i]=prev;
       }
     }
@@ -262,13 +261,13 @@ function minimax(b,bigP,bigC,isMax,depth){
       if(canPlace(b,i,false)){
         const prev={...b[i]};
         placeStone(b,i,'O',false);
-        best=Math.min(best,minimax(b,bigP,bigC,true,depth+1));
+        best=Math.min(best,minimax(b,bigP,bigC,true,depth+1,maxDepth));
         b[i]=prev;
       }
       if(hasBig&&canPlace(b,i,true)){
         const prev={...b[i]};
         placeStone(b,i,'O',true);
-        best=Math.min(best,minimax(b,bigP-1,bigC,true,depth+1));
+        best=Math.min(best,minimax(b,bigP-1,bigC,true,depth+1,maxDepth));
         b[i]=prev;
       }
     }
@@ -288,29 +287,37 @@ function getCpuMove(){
   }
   if(moves.length===0)return null;
 
+  const rnd=()=>moves[Math.floor(Math.random()*moves.length)];
+
   if(level===0){
-    // よわい: 勝てる手があれば打つ、たまにビッグ使う、基本ランダム
+    // よわい: リーチは必ず防ぐ、勝てる手は50%、それ以外ランダム
     const win=findWinMove('X',false)||findWinMove('X',true);
     if(win&&Math.random()<0.5)return win;
-    return moves[Math.floor(Math.random()*moves.length)];
+    const block=findWinMove('O',false)||(bigStones.c>0?findWinMove('O',true):null);
+    if(block)return{i:block.i,big:bigStones.c>0&&!canPlace(board,block.i,false)};
+    return rnd();
 
   } else if(level===1){
-    // ふつう: 勝ち→防ぐ→ランダム（ビッグも考慮）
+    // ふつう: 勝ち必ず→リーチ必ず防ぐ→センター狙い→ランダム
     const win=findWinMove('X',false)||findWinMove('X',true);
     if(win)return win;
     const block=findWinMove('O',false)||(bigStones.c>0?findWinMove('O',true):null);
-    if(block)return {i:block.i,big:bigStones.c>0&&!canPlace(board,block.i,false)};
-    return moves[Math.floor(Math.random()*moves.length)];
+    if(block)return{i:block.i,big:bigStones.c>0&&!canPlace(board,block.i,false)};
+    if(Math.random()<0.5&&canPlace(board,4,false))return{i:4,big:false};
+    return rnd();
 
   } else {
-    // つよい: 深さ制限付きミニマックス
+    // つよい: 深さ4で十分強いが完全読みはしない
+    const maxDepth=4;
     let best=-Infinity,bestMove=moves[0];
-    for(const mv of moves){
+    // 候補手をシャッフルして同スコア時にランダム性を持たせる
+    const shuffled=[...moves].sort(()=>Math.random()-.5);
+    for(const mv of shuffled){
       const prev={...board[mv.i]};
       const prevBig=bigStones.c;
       placeStone(board,mv.i,'X',mv.big);
       if(mv.big)bigStones.c--;
-      const score=minimax(board,bigStones.p,bigStones.c,false,0);
+      const score=minimax(board,bigStones.p,bigStones.c,false,0,maxDepth);
       board[mv.i]=prev;
       bigStones.c=prevBig;
       if(score>best){best=score;bestMove=mv;}
